@@ -2,22 +2,19 @@ import { useState } from 'react';
 import { typedDecorateComponentProperties } from './properties';
 import { getCommonDecorateComponentProperties } from './createNewDecorateComponent';
 
-const useNewDecorateComponent = (
-  decorateComponents,
-  dispatchDecorateComponents,
-) => {
+const useNewDecorateComponent = (dispatchDecorateComponents) => {
   const [newDecorateComponent, setNewDecorateComponent] = useState(null);
 
   const removeNewDecorateComponent = () => {
     setNewDecorateComponent(null);
   };
 
-  const createNewDecorateComponent = (position, type) => {
+  const createNewDecorateComponent = (position, type, order) => {
     setNewDecorateComponent({
       ...getCommonDecorateComponentProperties(position),
       ...typedDecorateComponentProperties[type],
       type,
-      order: decorateComponents.length,
+      order,
     });
   };
 
