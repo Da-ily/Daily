@@ -16,10 +16,8 @@ import {
 } from '../../constants/toolbar';
 import { postPage, patchPage } from '../../apis/dailryApi';
 import { DECORATE_TYPE, EDIT_MODE } from '../../constants/decorateComponent';
-import useNewDecorateComponent from '../../hooks/useNewDecorateComponent/useNewDecorateComponent';
 import DecorateWrapper from '../../components/decorate/DecorateWrapper';
 import TypedDecorateComponent from '../../components/decorate/TypedDecorateComponent';
-import useEditDecorateComponent from '../../hooks/useEditDecorateComponent';
 import { TEXT } from '../../styles/color';
 import MoveableComponent from '../../components/Moveable/Moveable';
 import usePageData from '../../hooks/usePageData';
@@ -30,6 +28,7 @@ import { PATH_NAME } from '../../constants/routes';
 import { useDailryContext } from '../../hooks/useDailryContext';
 import useDecorateComponents from '../../hooks/decorateComponent/useDecorateComponents';
 import { getRelativePosition } from '../../hooks/useNewDecorateComponent/createNewDecorateComponent';
+import useCheckClickedEl from '../../hooks/decorateComponent/useCheckClickedEl';
 // import { PATH_NAME } from '../../constants/routes';
 
 const DailryPage = () => {
@@ -39,7 +38,11 @@ const DailryPage = () => {
   const { currentDailryPage, setCurrentDailry } = useDailryContext();
 
   const [target, setTarget] = useState(null);
+
   const [selectedTool, setSelectedTool] = useState(null);
+
+  const [deletedDecorateComponentIds, setDeletedDecorateComponentIds] =
+    useState([]);
   // const [pageId, setPageId] = useState(0);
 
   const navigate = useNavigate();
@@ -51,43 +54,15 @@ const DailryPage = () => {
     decorateComponents,
     dispatchDecorateComponents,
     getUpdatedDecorateComponents,
+    editingDecorateComponent,
   } = useDecorateComponents();
+  useCheckClickedEl(editingDecorateComponent, dispatchDecorateComponents);
 
-  const {
-    newDecorateComponent,
-    createNewDecorateComponent,
-    setNewDecorateComponentTypeContent,
-    completeCreateNewDecorateComponent,
-  } = useNewDecorateComponent(decorateComponents, dispatchDecorateComponents);
-
-  const {
-    editMode,
-    setEditMode,
-    canEditDecorateComponent,
-    setCanEditDecorateComponent,
-    setCanEditDecorateComponentTypeContent,
-    setCanEditDecorateComponentCommonProperty,
-    completeModifyDecorateComponent,
-  } = useEditDecorateComponent(dispatchDecorateComponents);
+  const [editMode, setEditMode] = useState(null);
 
   const { appendPageDataToFormData, formData } = usePageData(
     getUpdatedDecorateComponents(),
   );
-
-  const isMoveable = () => target && editMode === EDIT_MODE.COMMON_PROPERTY;
-
-  const [deletedDecorateComponentIds, setDeletedDecorateComponentIds] =
-    useState([]);
-
-  const deleteDecorateComponent = (id) => {
-    if (!deletedDecorateComponentIds.some((d) => d.id === id)) {
-      setDeletedDecorateComponentIds((prev) => [...prev, id]);
-    }
-
-    dispatchDecorateComponents({ type: 'delete', id });
-
-    setTarget(null);
-  };
 
   const patchPageData = () => {
     setTarget(null);
@@ -109,17 +84,19 @@ const DailryPage = () => {
     }, 100);
   };
 
+  const isMoveable = () => target && editMode === EDIT_MODE.COMMON_PROPERTY;
+
+  const deleteDecorateComponent = (id) => {
+    if (!deletedDecorateComponentIds.some((d) => d.id === id)) {
+      setDeletedDecorateComponentIds((prev) => [...prev, id]);
+    }
+
+    dispatchDecorateComponents({ type: 'delete', id });
+
+    setTarget(null);
+  };
+
   useEffect(() => {
-    if (canEditDecorateComponent) {
-      completeModifyDecorateComponent();
-      setTarget(null);
-      setCanEditDecorateComponent(null);
-    }
-
-    if (newDecorateComponent) {
-      completeCreateNewDecorateComponent();
-    }
-
     setTimeout(() => {
       if (getUpdatedDecorateComponents().length > 0) {
         patchPageData();
@@ -149,65 +126,26 @@ const DailryPage = () => {
   };
 
   const handleClickPage = (e) => {
-    if (
-      selectedTool === null ||
-      (selectedTool === DECORATE_TYPE.MOVING && !canEditDecorateComponent)
-    ) {
-      return;
-    }
-
-    if (canEditDecorateComponent) {
-      completeModifyDecorateComponent();
-      setTarget(null);
-
-      setCanEditDecorateComponent(null);
-      return;
-    }
-
-    if (newDecorateComponent) {
-      completeCreateNewDecorateComponent();
+    if (selectedTool === null || selectedTool === DECORATE_TYPE.MOVING) {
       return;
     }
     const position = getRelativePosition(e, pageRef);
 
-    createNewDecorateComponent(position, selectedTool);
+    setTimeout(() => {
+      dispatchDecorateComponents({
+        type: 'create',
+        position,
+        decorateComponentType: selectedTool,
+        order: decorateComponents?.length,
+      });
+    }, 100);
   };
 
-  const handleClickDecorate = (e, index, element) => {
+  const handleClickDecorate = (e, index) => {
     e.stopPropagation();
 
     if (selectedTool === DECORATE_TYPE.MOVING) {
       setTarget(index + 1);
-    }
-
-    if (
-      canEditDecorateComponent &&
-      canEditDecorateComponent.id !== element.id
-    ) {
-      completeModifyDecorateComponent();
-      setTarget(null);
-      setCanEditDecorateComponent(null);
-      return;
-    }
-
-    if (newDecorateComponent) {
-      completeCreateNewDecorateComponent();
-
-      return;
-    }
-
-    if (
-      editMode === EDIT_MODE.COMMON_PROPERTY ||
-      (editMode === EDIT_MODE.TYPE_CONTENT && selectedTool === element.type)
-    ) {
-      setCanEditDecorateComponent(element);
-    }
-
-    if (
-      canEditDecorateComponent &&
-      canEditDecorateComponent.id !== element.id
-    ) {
-      setTarget(null);
     }
   };
   return dailryId ? (
@@ -216,12 +154,18 @@ const DailryPage = () => {
         {decorateComponents?.map((element, index) => {
           const canEdit =
             editMode === EDIT_MODE.TYPE_CONTENT &&
-            element.type === selectedTool &&
-            canEditDecorateComponent?.id === element.id;
+            element?.type === selectedTool &&
+            (element?.editType === 'setTypeContent' ||
+              element?.editType === 'create');
           return (
             <DecorateWrapper
-              key={element.id}
-              onMouseDown={(e) => handleClickDecorate(e, index, element)}
+              key={element?.id}
+              onMouseDown={(e) => {
+                if (element?.editType === 'create') {
+                  e.stopPropagation();
+                }
+                handleClickDecorate(e, index, element);
+              }}
               setTarget={setTarget}
               index={index}
               canEdit={canEdit}
@@ -231,10 +175,10 @@ const DailryPage = () => {
               {...element}
             >
               {(target === index + 1 ||
-                canEditDecorateComponent?.id === element.id) && (
+                element?.editType === 'setTypeContent') && (
                 <DecorateComponentDeleteButton
                   onClick={() => {
-                    deleteDecorateComponent(element.id);
+                    deleteDecorateComponent(element?.id);
                   }}
                 >
                   삭제
@@ -242,34 +186,19 @@ const DailryPage = () => {
               )}
 
               <TypedDecorateComponent
-                type={element.type}
-                typeContent={element.typeContent}
+                id={element?.id}
+                type={element?.type}
+                typeContent={element?.typeContent}
                 canEdit={canEdit}
-                setTypeContent={setCanEditDecorateComponentTypeContent}
+                dispatchDecorateComponents={dispatchDecorateComponents}
               />
             </DecorateWrapper>
           );
         })}
-
-        {newDecorateComponent && (
-          <DecorateWrapper
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            canEdit
-            {...newDecorateComponent}
-          >
-            <TypedDecorateComponent
-              type={newDecorateComponent.type}
-              canEdit
-              setTypeContent={setNewDecorateComponentTypeContent}
-            />
-          </DecorateWrapper>
-        )}
         {isMoveable() && (
           <MoveableComponent
             target={moveableRef[target]}
-            setCommonProperty={setCanEditDecorateComponentCommonProperty}
+            setCommonProperty={dispatchDecorateComponents}
           />
         )}
       </S.CanvasWrapper>
@@ -277,14 +206,6 @@ const DailryPage = () => {
         <S.ToolWrapper>
           {DECORATE_TOOLS.map(({ icon, type }, index) => {
             const onSelect = (t) => {
-              if (newDecorateComponent) {
-                completeCreateNewDecorateComponent();
-              }
-              if (canEditDecorateComponent) {
-                completeModifyDecorateComponent();
-                setTarget(null);
-                setCanEditDecorateComponent(null);
-              }
               setSelectedTool(selectedTool === t ? null : t);
               if (t === DECORATE_TYPE.MOVING) {
                 setEditMode(EDIT_MODE.COMMON_PROPERTY);
@@ -304,31 +225,11 @@ const DailryPage = () => {
           })}
           {PAGE_TOOLS.map(({ icon, type }, index) => {
             const onSelect = async (t) => {
-              if (newDecorateComponent) {
-                completeCreateNewDecorateComponent();
-              }
-              if (canEditDecorateComponent) {
-                completeModifyDecorateComponent();
-                setTarget(null);
-                setCanEditDecorateComponent(null);
-              }
               setSelectedTool(selectedTool === t ? null : t);
               setTimeout(() => {
                 setSelectedTool(null);
               }, 150);
               if (t === 'add') {
-                if (canEditDecorateComponent) {
-                  completeModifyDecorateComponent();
-                  setTarget(null);
-
-                  setCanEditDecorateComponent(null);
-                  return;
-                }
-
-                if (newDecorateComponent) {
-                  completeCreateNewDecorateComponent();
-                  return;
-                }
                 if (
                   getUpdatedDecorateComponents().length > 0 &&
                   window.confirm(

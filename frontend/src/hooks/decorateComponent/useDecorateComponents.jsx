@@ -1,23 +1,36 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { useDailryContext } from '../useDailryContext';
 import { getPage } from '../../apis/dailryApi';
-import { decorateComponentReducer } from './decorateComponentsReducer';
+import { decorateComponentsReducer } from './decorateComponentsReducer';
 
 const useDecorateComponents = () => {
   const { currentDailry, currentDailryPage } = useDailryContext();
   const { id } = currentDailry;
   const [decorateComponents, dispatchDecorateComponents] = useReducer(
-    decorateComponentReducer,
+    decorateComponentsReducer,
     [],
   );
 
+  const [editingDecorateComponent, setEditingDecorateComponent] = useState('');
+
   useEffect(() => {
-    console.log(decorateComponents);
+    const current = decorateComponents.find(
+      (c) => c.editType === 'create' || c.editType === 'setTypeContent',
+    );
+    if (current) {
+      setEditingDecorateComponent(current);
+    }
   }, [decorateComponents]);
+
+  // const isEditingCompleted =
+  //   editingDecorateComponent?.typeContent &&
+  //   Object.values(editingDecorateComponent?.typeContent).every((v) => {
+  //     return v !== null;
+  //   });
 
   const getUpdatedDecorateComponents = () => {
     const filteredDecorateComponents = decorateComponents.filter(
-      (component) => component.isUpdated === true,
+      (component) => component?.isUpdated === true,
     );
     return filteredDecorateComponents;
   };
@@ -55,6 +68,7 @@ const useDecorateComponents = () => {
     decorateComponents,
     dispatchDecorateComponents,
     getUpdatedDecorateComponents,
+    editingDecorateComponent,
   };
 };
 
