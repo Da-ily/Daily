@@ -5,9 +5,7 @@ import useDrawInstance from './useDrawInstance';
 
 const Drawing = (props) => {
   const canvas = useRef(null);
-
-  const { canEdit, typeContent, setTypeContent } = props;
-
+  const { canEdit, typeContent, dispatchDecorateComponent } = props;
   const { drawInstance } = useDrawInstance(canvas, typeContent);
   const { mouseEventHandlers, startMoving, stopMoving, mode } = useDrawUtils(
     canvas,
@@ -24,7 +22,10 @@ const Drawing = (props) => {
         onMouseUp={() => {
           if (!canEdit) return;
           stopMoving(mouseEventHandlers[mode]);
-          setTypeContent({ base64: drawInstance.getInfo() });
+          dispatchDecorateComponent({
+            type: 'setTypeContent',
+            typeContent: { base64: drawInstance.getInfo() },
+          });
         }}
         ref={canvas}
       ></canvas>
@@ -51,7 +52,7 @@ Drawing.propTypes = {
   id: PropTypes.string,
   canEdit: PropTypes.bool,
   typeContent: PropTypes.object,
-  setTypeContent: PropTypes.func,
+  dispatchDecorateComponent: PropTypes.func,
 };
 
 export default Drawing;
